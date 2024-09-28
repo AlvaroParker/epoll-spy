@@ -1,10 +1,15 @@
-use aya::maps::HashMap;
+use aya::maps::{AsyncPerfEventArray, HashMap};
 use aya::programs::TracePoint;
+use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Bpf};
 use aya_log::BpfLogger;
+use bytes::BytesMut;
 use clap::Parser;
+use epoll_ctl::EpollCtl;
 use log::{debug, info, warn};
 use tokio::signal;
+
+mod epoll_ctl;
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
@@ -56,6 +61,26 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
         None => {}
+    }
+    let perf_array = bpf.take_map("EVENTS").unwrap();
+    let mut perf_array = AsyncPerfEventArray::try_from(perf_array)?;
+
+    for cpu in online_cpus()? {
+        let mut buf = perf_array.open(cpu, None)?;
+        let mut bufs = (0..10)
+            .map(|_| BytesMut::with_capacity(1024))
+            .collect::<Vec<_>>();
+        tokio::spawn(async move {
+            loop {
+                let events = buf.read_events(&mut bufs).await.unwrap();
+                for i in 0..events.read {
+                    let buf = bufs[i].to_owned();
+                    if let Some(epoll_ctl) = EpollCtl::new(buf) {
+                        println!("{}", epoll_ctl);
+                    }
+                }
+            }
+        });
     }
 
     info!("Waiting for Ctrl-C...");
