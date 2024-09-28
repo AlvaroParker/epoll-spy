@@ -5,11 +5,11 @@ use aya::{include_bytes_aligned, Bpf};
 use aya_log::BpfLogger;
 use bytes::BytesMut;
 use clap::Parser;
-use epoll_ctl::EpollCtl;
+use epoll::EpollCtl;
 use log::{debug, info, warn};
 use tokio::signal;
 
-mod epoll_ctl;
+mod epoll;
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
