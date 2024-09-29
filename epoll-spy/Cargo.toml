@@ -5,14 +5,20 @@ edition = "2021"
 publish = false
 
 [dependencies]
-aya = "0.12"
-aya-log = "0.2"
+aya = { git = "https://github.com/aya-rs/aya", branch = "main" }
+aya-log = { git = "https://github.com/aya-rs/aya", branch = "main" }
 epoll-spy-common = { path = "../epoll-spy-common", features = ["user"] }
 anyhow = "1"
 env_logger = "0.10"
 libc = "0.2"
 log = "0.4"
-tokio = { version = "1.25", features = ["macros", "rt", "rt-multi-thread", "net", "signal"] }
+tokio = { version = "1.25", features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "net",
+    "signal",
+] }
 clap = { version = "4.5.18", features = ["derive"] }
 bytes = "1.7.2"
 bitflags = "2.6.0"

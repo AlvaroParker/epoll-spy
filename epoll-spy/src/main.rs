@@ -1,8 +1,8 @@
 use aya::maps::{AsyncPerfEventArray, HashMap};
 use aya::programs::TracePoint;
 use aya::util::online_cpus;
-use aya::{include_bytes_aligned, Bpf};
-use aya_log::BpfLogger;
+use aya::{include_bytes_aligned, Ebpf};
+use aya_log::EbpfLogger;
 use bytes::BytesMut;
 use clap::Parser;
 use epoll::EpollCtl;
@@ -10,6 +10,7 @@ use log::{debug, info, warn};
 use tokio::signal;
 
 mod epoll;
+mod loader;
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
@@ -38,20 +39,25 @@ async fn main() -> Result<(), anyhow::Error> {
     // like to specify the eBPF program at runtime rather than at compile-time, you can
     // reach for `Bpf::load_file` instead.
     #[cfg(debug_assertions)]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/debug/epoll-spy"
     ))?;
     #[cfg(not(debug_assertions))]
-    let mut bpf = Bpf::load(include_bytes_aligned!(
+    let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/epoll-spy"
     ))?;
-    if let Err(e) = BpfLogger::init(&mut bpf) {
+    if let Err(e) = EbpfLogger::init(&mut bpf) {
         // This can happen if you remove all log statements from your eBPF program.
         warn!("failed to initialize eBPF logger: {}", e);
     }
-    let program: &mut TracePoint = bpf.program_mut("epoll_spy").unwrap().try_into()?;
-    program.load()?;
-    program.attach("syscalls", "sys_enter_epoll_ctl")?;
+
+    let program1: &mut TracePoint = bpf.program_mut("epoll_spy").unwrap().try_into()?;
+    program1.load()?;
+    program1.attach("syscalls", "sys_enter_epoll_ctl")?;
+
+    let program2: &mut TracePoint = bpf.program_mut("epoll_spy_exit").unwrap().try_into()?;
+    program2.load()?;
+    program2.attach("syscalls", "sys_exit_epoll_ctl")?;
 
     match bpf.map_mut("PIDS") {
         Some(hm) => {

@@ -8,6 +8,7 @@ pub struct EpollCtl {
     op: u64,
     fd: u64,
     epoll_event: EpollEvent,
+    return_value: i64,
 }
 
 impl EpollCtl {
@@ -35,6 +36,7 @@ impl EpollCtl {
                 op: raw.op,
                 fd: raw.fd,
                 epoll_event,
+                return_value: raw.return_value,
             });
         }
         None
@@ -48,6 +50,7 @@ struct RawEpollCtl {
     op: u64,
     fd: u64,
     epoll_event: [u8; 12],
+    return_value: i64,
 }
 
 impl RawEpollCtl {
@@ -73,8 +76,8 @@ impl fmt::Display for EpollCtl {
         };
         write!(
             f,
-            "epoll_ctl({}, {}, {}, {})",
-            self.epfd, op_str, self.fd, self.epoll_event
+            "epoll_ctl({}, {}, {}, {}) = {}",
+            self.epfd, op_str, self.fd, self.epoll_event, self.return_value
         )
     }
 }
