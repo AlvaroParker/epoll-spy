@@ -4,6 +4,7 @@ use std::fmt;
 use super::{EpollData, EpollEvent, Events};
 
 pub struct EpollCtl {
+    pid: u32,
     epfd: u64,
     op: u64,
     fd: u64,
@@ -32,6 +33,7 @@ impl EpollCtl {
                 data: EpollData { uint64: data },
             };
             return Some(Self {
+                pid: raw.pid,
                 epfd: raw.epfd,
                 op: raw.op,
                 fd: raw.fd,
@@ -46,6 +48,7 @@ impl EpollCtl {
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 struct RawEpollCtl {
+    pid: u32,
     epfd: u64,
     op: u64,
     fd: u64,
@@ -55,7 +58,7 @@ struct RawEpollCtl {
 
 impl RawEpollCtl {
     pub fn new(mut bytes: BytesMut) -> Option<Self> {
-        if bytes.len() != std::mem::size_of::<Self>() {
+        if bytes.len() < std::mem::size_of::<Self>() {
             return None;
         }
         Some(unsafe {
@@ -76,8 +79,8 @@ impl fmt::Display for EpollCtl {
         };
         write!(
             f,
-            "epoll_ctl({}, {}, {}, {}) = {}",
-            self.epfd, op_str, self.fd, self.epoll_event, self.return_value
+            "(pid: {}) epoll_ctl({}, {}, {}, {}) = {}",
+            self.pid, self.epfd, op_str, self.fd, self.epoll_event, self.return_value
         )
     }
 }

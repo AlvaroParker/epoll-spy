@@ -1,27 +1,39 @@
+use std::collections::HashSet;
+
 use aya::maps::{AsyncPerfEventArray, HashMap};
 use aya::programs::TracePoint;
 use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Ebpf};
-use aya_log::EbpfLogger;
 use bytes::BytesMut;
 use clap::Parser;
 use epoll::EpollCtl;
-use log::{debug, info, warn};
+use follow_threads::get_threads;
+use log::{debug, info};
 use tokio::signal;
 
 mod epoll;
-mod loader;
+mod follow_threads;
 
 #[derive(Parser, Debug)]
 pub struct Arguments {
+    /// List of PIDs you want to track
     #[arg(short, long, value_delimiter = ',', required = true)]
     pid: Vec<u32>,
+
+    /// Follow threads of the provided PIDs
+    #[arg(long)]
+    follow_threads: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     env_logger::init();
     let args = Arguments::parse();
+    let mut pids: HashSet<u32> = args.pid.into_iter().collect();
+    if args.follow_threads {
+        get_threads(&mut pids);
+        println!("Final pids: {}", pids.len())
+    }
 
     // Bump the memlock rlimit. This is needed for older kernels that don't use the
     // new memcg based accounting, see https://lwn.net/Articles/837122/
@@ -46,10 +58,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/epoll-spy"
     ))?;
-    if let Err(e) = EbpfLogger::init(&mut bpf) {
-        // This can happen if you remove all log statements from your eBPF program.
-        warn!("failed to initialize eBPF logger: {}", e);
-    }
 
     let program1: &mut TracePoint = bpf.program_mut("epoll_spy").unwrap().try_into()?;
     program1.load()?;
@@ -62,7 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
     match bpf.map_mut("PIDS") {
         Some(hm) => {
             let mut pid_map: HashMap<_, u32, u32> = HashMap::try_from(hm)?;
-            for pid in args.pid {
+            for pid in pids.iter() {
                 _ = pid_map.insert(pid, 1, 0);
             }
         }
